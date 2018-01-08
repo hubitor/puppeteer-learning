@@ -11,8 +11,22 @@ const FAXIAN_URL_HOSTE_IN_24_HOURS = 'https://faxian.smzdm.com/h4s0t0f0c0p1/#fil
 scrapeSearch('apple');
 
 async function scrapeFaxian(url = FAXIAN_URL_HOSTE_IN_3_HOURS) {
-    const browser = await puppeteer.launch();
+    // 怎么感觉无头模式更加慢呢...
+    const browser = await puppeteer.launch({
+        headless: false
+    });
     const page = await browser.newPage();
+
+    // 这里暂时不能像search页面那样只放一个请求进来，否则会影响到页面的高度
+    // 那样的话scroll的逻辑又要改
+    // 后期还可以提升性能
+    await page.setRequestInterception(true);
+    page.on('request', interceptedRequest => {
+        if (interceptedRequest.url.endsWith('.png') || interceptedRequest.url.endsWith('.jpg'))
+            interceptedRequest.abort();
+        else
+            interceptedRequest.continue();
+    });
 
     await page.setViewport({
         width: 1920,
@@ -27,13 +41,21 @@ async function scrapeFaxian(url = FAXIAN_URL_HOSTE_IN_3_HOURS) {
             console.log(await getFaXianContent(page));
         }
     })
-
-    await browser.close();
+    // await browser.close();
 }
 
 async function scrapeSearch(searchWord, pageCount = 1) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
+
+    // 过滤无用请求，提升性能
+    await page.setRequestInterception(true);
+    page.on('request', interceptedRequest => {
+        if (interceptedRequest.url.includes('search.smzdm.com'))
+            interceptedRequest.continue();
+        else
+            interceptedRequest.abort();
+    });
 
     await page.setViewport({
         width: 1920,
@@ -63,7 +85,7 @@ async function scrollPage(page) {
                 return;
             }
             window.scrollBy(0, document.body.scrollHeight);
-        }, 1000);
+        }, 200);
     });
 }
 
