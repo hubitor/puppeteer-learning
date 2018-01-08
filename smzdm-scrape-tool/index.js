@@ -1,13 +1,17 @@
 const puppeteer = require('puppeteer');
+
+const SEARCH_URL = 'http://search.smzdm.com/?c=faxian&s=SEARCHWORD&p=PAGENUMBER';
+
 const FAXIAN_URL_NEWEST = 'https://faxian.smzdm.com/';
 const FAXIAN_URL_HOSTE_IN_3_HOURS = 'https://faxian.smzdm.com/h2s0t0f0c0p1/#filter-block';
 const FAXIAN_URL_HOSTE_IN_12_HOURS = 'https://faxian.smzdm.com/h3s0t0f0c0p1/#filter-block';
 const FAXIAN_URL_HOSTE_IN_24_HOURS = 'https://faxian.smzdm.com/h4s0t0f0c0p1/#filter-block';
 
-async function run() {
-    const browser = await puppeteer.launch({
-        headless: false
-    });
+// scrapeFaxian();
+scrapeSearch('apple');
+
+async function scrapeFaxian(url = FAXIAN_URL_HOSTE_IN_3_HOURS) {
+    const browser = await puppeteer.launch();
     const page = await browser.newPage();
 
     await page.setViewport({
@@ -16,7 +20,7 @@ async function run() {
     });
 
     // 去哪个页面搜索？
-    await page.goto(FAXIAN_URL_HOSTE_IN_24_HOURS);
+    await page.goto(url);
     await scrollPage(page);
     page.on('console', async(msg) => {
         if (msg.text === 'scroll complete') {
@@ -24,6 +28,26 @@ async function run() {
         }
     })
 
+    await browser.close();
+}
+
+async function scrapeSearch(searchWord, pageCount = 1) {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+
+    await page.setViewport({
+        width: 1920,
+        height: 1080
+    });
+
+
+    for (let i = 1; i <= pageCount; i++) {
+        let url = SEARCH_URL.replace('SEARCHWORD', searchWord).replace('PAGENUMBER', i);
+        await page.goto(url);
+        console.log(await getSearchContent(page));
+    }
+
+    await browser.close();
 }
 
 async function scrollPage(page) {
@@ -41,9 +65,43 @@ async function scrollPage(page) {
             window.scrollBy(0, document.body.scrollHeight);
         }, 1000);
     });
-
 }
 
+
+// 搜索页面
+async function getSearchContent(page) {
+    const LIST_TITLE_SELECTOR = '#feed-main-list > li:nth-child(INDEX) > div > div.z-feed-content > h5 > a.feed-nowrap';
+    const LIST_PRICE_SELECTOR = '#feed-main-list > li:nth-child(INDEX) > div > div.z-feed-content > h5 > a:nth-child(2) > div';
+    const LIST_TIME_SELECTOR = '#feed-main-list > li:nth-child(INDEX) > div > div.z-feed-content > div.z-feed-foot > div.z-feed-foot-r > span';
+    const LIST_COUNT = 20;
+    let result = [];
+
+    for (let i = 1; i <= LIST_COUNT; i++) {
+        let titleSelector = LIST_TITLE_SELECTOR.replace('INDEX', i);
+        let priceSelector = LIST_PRICE_SELECTOR.replace('INDEX', i);
+        let timeSelector = LIST_TIME_SELECTOR.replace('INDEX', i);
+        let {
+            title,
+            href,
+        } = await page.evaluate(sel => {
+            let title = document.querySelector(sel).title;
+            let href = document.querySelector(sel).href;
+            return {
+                title,
+                href
+            };
+        }, titleSelector);
+        let price = await page.evaluate(sel => document.querySelector(sel).innerText, priceSelector);
+        let time = await page.evaluate(sel => document.querySelector(sel).innerText, timeSelector);
+        result.push({
+            title,
+            price,
+            time,
+            href
+        });
+    }
+    return result;
+}
 
 // 发现页面
 async function getFaXianContent(page) {
@@ -52,7 +110,7 @@ async function getFaXianContent(page) {
     const TOP_COUNT = 50;
     let result = [];
 
-    for (let i = 1; i < TOP_COUNT; i++) {
+    for (let i = 1; i <= TOP_COUNT; i++) {
         let titleSelector = LIST_TITLE_SELECTOR.replace('INDEX', i);
         let priceSelector = LIST_PRICE_SELECTOR.replace('INDEX', i);
         let {
@@ -75,5 +133,3 @@ async function getFaXianContent(page) {
     }
     return result;
 }
-
-run();
