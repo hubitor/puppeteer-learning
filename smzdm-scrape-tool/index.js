@@ -39,9 +39,11 @@ async function scrapeFaxian(url = FAXIAN_URL_HOSTE_IN_3_HOURS) {
     page.on('console', async(msg) => {
         if (msg.text === 'scroll complete') {
             console.log(await getFaXianContent(page));
+            // 这个要放这里面来，否则浏览器会提前关掉
+            await browser.close();
         }
     })
-    // await browser.close();
+
 }
 
 async function scrapeSearch(searchWord, pageCount = 1) {
